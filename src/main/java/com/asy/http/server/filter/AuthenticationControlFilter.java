@@ -34,7 +34,8 @@ public class AuthenticationControlFilter extends Filter {
                 } else if (authorizationHeader.startsWith("Digest")) {
                     checkDigestAuthentication(authorizationHeader, httpExchange.getRequestMethod());
                 } else {
-                    throw new Exception("Unrecognized authorization header");
+                    sendMessage(httpExchange, HttpStatus.SC_BAD_REQUEST, "Unrecognized authorization header. ");
+                    return;
                 }
             } catch (Exception e) {
                 sendMessage(httpExchange, HttpStatus.SC_UNPROCESSABLE_ENTITY, "Request control failed. " + e.getMessage());
