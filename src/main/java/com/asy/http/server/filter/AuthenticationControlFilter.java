@@ -6,11 +6,11 @@ import com.asy.http.server.utils.StringUtils;
 import com.sun.net.httpserver.Filter;
 import com.sun.net.httpserver.HttpExchange;
 import org.apache.commons.codec.binary.Base64;
+import org.apache.http.HttpStatus;
 
 import java.io.IOException;
 import java.io.OutputStream;
 import java.security.NoSuchAlgorithmException;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -37,7 +37,7 @@ public class AuthenticationControlFilter extends Filter {
                     throw new Exception("Unrecognized authorization header");
                 }
             } catch (Exception e) {
-                sendMessage(httpExchange, 401, "Request control failed. " + e.getMessage());
+                sendMessage(httpExchange, HttpStatus.SC_UNPROCESSABLE_ENTITY, "Request control failed. " + e.getMessage());
                 return;
             }
             logger.info("Request controlled");
@@ -50,7 +50,7 @@ public class AuthenticationControlFilter extends Filter {
         try {
             sendWWWAuthenticateDigestMessage(httpExchange);
         } catch (NoSuchAlgorithmException e) {
-            sendMessage(httpExchange, 500, "Request challenge could not be sent");
+            sendMessage(httpExchange, HttpStatus.SC_INTERNAL_SERVER_ERROR, "Request challenge could not be sent");
         }
         return;
     }
@@ -70,7 +70,7 @@ public class AuthenticationControlFilter extends Filter {
 
         String authenticationHeader = "Digest realm=\"" + ServerTest.SERVER_REALM + "\", " + "qop=\"auth\", nonce=\"" + nonceValueBase64 + "\"";
         httpExchange.getResponseHeaders().set("WWW-Authenticate", authenticationHeader);
-        sendMessage(httpExchange, 401, authenticationHeader);
+        sendMessage(httpExchange, HttpStatus.SC_UNAUTHORIZED, authenticationHeader);
     }
 
     private void checkBasicAuthentication(String authorizationHeader) throws Exception {
@@ -156,38 +156,16 @@ public class AuthenticationControlFilter extends Filter {
 
         String serverDigestMd5 = DigestUtils.generateDigest(username, ServerTest.allowedUsers.get(username), realm, requestMethod, uri, qop, nonce, nc, cnonce);
         if (!serverDigestMd5.equals(response)) {
-            throw new Exception("Response is not the same");
+            throw new Exception("Response check failed. Check your login information");
         }
 
     }
 
     // for a better way, from spring-security-web : DigestAuthUtils class can be used.
     private Map<String, String> parseDigestAuthorizationHeader(String authorizationHeader) {
-        String[] digestDataParsed = authorizationHeader.split("\\s+");
-
-        Map<String, String> map = new HashMap<String, String>();
-
-        for (String str : digestDataParsed) {
-            if (str.startsWith("username")) {
-                map.put("username", str.substring(str.indexOf("=") + 1).replaceAll("\"", "").replaceAll(",", ""));
-            } else if (str.startsWith("realm")) {
-                map.put("realm", str.substring(str.indexOf("=") + 1).replaceAll("\"", "").replaceAll(",", ""));
-            } else if (str.startsWith("nonce")) {
-                map.put("nonce", str.substring(str.indexOf("=") + 2, str.length() - 2).replaceAll("\"", "").replaceAll(",", ""));
-            } else if (str.startsWith("uri")) {
-                map.put("uri", str.substring(str.indexOf("=") + 1).replaceAll("\"", "").replaceAll(",", ""));
-            } else if (str.startsWith("response")) {
-                map.put("response", str.substring(str.indexOf("=") + 1).replaceAll("\"", "").replaceAll(",", ""));
-            } else if (str.startsWith("qop")) {
-                map.put("qop", str.substring(str.indexOf("=") + 1).replaceAll("\"", "").replaceAll(",", ""));
-            } else if (str.startsWith("nc")) {
-                map.put("nc", str.substring(str.indexOf("=") + 1).replaceAll("\"", "").replaceAll(",", ""));
-            } else if (str.startsWith("cnonce")) {
-                map.put("cnonce", str.substring(str.indexOf("=") + 1).replaceAll("\"", "").replaceAll(",", ""));
-            }
-        }
-
-        return map;
+        String seciton212response = authorizationHeader.substring(7);
+        String[] headerEntries = DigestUtils.splitIgnoringQuotes(seciton212response, ',');
+        return DigestUtils.splitEachArrayElementAndCreateMap(headerEntries, "=", "\"");
     }
 
 
